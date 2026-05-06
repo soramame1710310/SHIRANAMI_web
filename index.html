@@ -1,0 +1,363 @@
+
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>白波</title>
+    <style>
+        :root {
+            --bg-color: #121212;
+            --text-color: #eeeeee;
+            --ui-bg-color: #1e1e1e;
+            --accent-color: #5f7bb6;
+            --font-family: "Helvetica Neue", Arial, sans-serif;
+            --shadow-opacity: 0.1;
+        }
+
+        body { 
+            margin: 0; 
+            background-color: var(--bg-color); 
+            color: var(--text-color); 
+            font-family: var(--font-family); 
+            display: flex; 
+            flex-direction: column; 
+            height: 100vh; 
+            width: 100vw;
+            overflow: hidden; 
+            touch-action: none;
+        }
+        
+        /* UI Elements Transitions */
+        #app-header { 
+            height: 50px; 
+            display: flex; 
+            align-items: center; 
+            justify-content: space-between; 
+            padding: 0 15px; 
+            background: var(--ui-bg-color);
+            border-bottom: 1px solid rgba(255,255,255,0.1); 
+            transition: transform 0.4s ease, margin-top 0.4s ease;
+            z-index: 1000;
+            flex-shrink: 0;
+        }
+        
+        #controls { 
+            background: var(--ui-bg-color); 
+            padding: 10px 20px 30px 20px; 
+            border-top: 1px solid rgba(255,255,255,0.1);
+            transition: transform 0.4s ease, margin-bottom 0.4s ease;
+            z-index: 1000;
+            flex-shrink: 0;
+        }
+
+        /* UI Hidden state */
+        body.ui-hidden #app-header { transform: translateY(-100%); margin-top: -50px; }
+        body.ui-hidden #controls { transform: translateY(100%); margin-bottom: -150px; }
+
+        .app-title { font-weight: bold; color: var(--accent-color); font-size: 14px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 50%; }
+
+        #viewer-container { 
+            flex: 1; 
+            display: flex; 
+            justify-content: center; 
+            align-items: center; 
+            position: relative; 
+            overflow: hidden; 
+            cursor: pointer;
+            width: 100%;
+        }
+        
+        #spread-view { 
+            display: flex; 
+            box-shadow: 0 10px 50px rgba(0,0,0, calc(var(--shadow-opacity) + 0.3)); 
+            transition: all 0.4s ease; 
+            pointer-events: none; 
+        }
+        
+        .page { position: relative; background: white; overflow: hidden; box-sizing: border-box; flex-shrink: 0; }
+        .page-shadow { position: absolute; top: 0; bottom: 0; width: 100%; height: 100%; box-shadow: inset 0 0 40px rgba(0,0,0, var(--shadow-opacity)); z-index: 100; }
+        .photo-img { width: 100%; height: 100%; object-fit: contain; display: block; }
+        .text-item { position: absolute; transform: translate(-50%, -50%); white-space: pre-wrap; line-height: 1.4; pointer-events: none; }
+        .page-num { position: absolute; bottom: 8px; width: 100%; text-align: center; opacity: 0.6; font-size: 10px; color: inherit; }
+
+        .nav-row { display: flex; align-items: center; gap: 15px; width: 100%; max-width: 600px; margin: 0 auto; justify-content: center; }
+        
+        #nav-button-container { display: none; margin-top: 10px; }
+        #nav-button-container.visible { display: flex; }
+
+        input[type=range] { -webkit-appearance: none; width: 100%; background: transparent; height: 30px; }
+        input[type=range]::-webkit-slider-runnable-track { width: 100%; height: 6px; background: rgba(128,128,128,0.3); border-radius: 3px; }
+        input[type=range]::-webkit-slider-thumb { -webkit-appearance: none; height: 24px; width: 24px; border-radius: 50%; background: var(--accent-color); margin-top: -9px; }
+        
+        .btn { 
+            background: rgba(255,255,255,0.1); color: var(--text-color); border: 1px solid var(--text-color); 
+            padding: 10px 20px; cursor: pointer; border-radius: 8px; font-size: 14px; flex: 1;
+        }
+
+        #ui-toggle-hint {
+            position: absolute; bottom: 30px; left: 50%; transform: translateX(-50%);
+            background: rgba(0,0,0,0.7); color: white; padding: 8px 20px; border-radius: 30px;
+            font-size: 11px; opacity: 0; transition: opacity 0.5s; pointer-events: none; z-index: 2000;
+        }
+    </style>
+</head>
+<body class="">
+
+<div id="app-header">
+    <div class="app-title">白波</div>
+    <select id="page-select" onchange="jumpToPage(this.value)"></select>
+</div>
+
+<div id="viewer-container" onclick="handleContainerClick(event)">
+    <div id="spread-view"></div>
+    <div id="ui-toggle-hint">中央タップでメニューを表示</div>
+</div>
+
+<div id="controls">
+    <div class="nav-row">
+        <span id="lbl-current" style="font-size:12px; width:30px; text-align:right;">1</span>
+        <input type="range" id="seek-bar" min="0" value="0" oninput="onSeek(this.value)">
+        <span id="lbl-total" style="font-size:12px; width:30px;">10</span>
+    </div>
+    
+    <div class="nav-row" style="margin-top:5px; justify-content: space-between; opacity: 0.7;">
+        <label style="font-size: 11px; cursor: pointer; display: flex; align-items: center; gap: 5px;">
+            <input type="checkbox" id="check-show-btns" onchange="toggleNavButtons(this.checked)"> ボタンを表示
+        </label>
+        <span style="font-size:10px;">スマホ横向きで自動拡大</span>
+    </div>
+
+    <div id="nav-button-container" class="nav-row">
+        <button class="btn" onclick="event.stopPropagation(); prevSpread()">◀ 戻る</button>
+        <button class="btn" onclick="event.stopPropagation(); nextSpread()">進む ▶</button>
+    </div>
+</div>
+
+<script>
+    const PROJECT_DATA = {"paper_size": "Hagaki", "orientation": "Landscape", "margin_top": 15.0, "margin_bottom": 15.0, "margin_inner": 15.0, "margin_outer": 15.0, "pages": [{"layout_name": "1枚 (全面)", "spacing_mm": 0.0, "background_color": "#FFFFFF", "photos": [{"path": "assets/img_0.jpg", "slot_index": 0, "rotation": 0, "crop": {"left": 0.0, "top": 0.0, "right": 1.0, "bottom": 1.0}}], "texts": [], "custom_margins": {"top": 0.0, "bottom": 0.0, "inner": 0.0, "outer": 0.0}}, {"layout_name": "1枚 (全面)", "spacing_mm": 0.0, "background_color": "#FFFFFF", "photos": [{"path": "assets/img_1.jpg", "slot_index": 0, "rotation": 0, "crop": {"left": 0.0, "top": 0.0, "right": 1.0, "bottom": 1.0}}], "texts": [], "custom_margins": {"top": 0.0, "bottom": 0.0, "inner": 0.0, "outer": 0.0}}, {"layout_name": "1枚 (全面)", "spacing_mm": 0.0, "background_color": "#FFFFFF", "photos": [{"path": "assets/img_2.jpg", "slot_index": 0, "rotation": 0, "crop": {"left": 0.0, "top": 0.0, "right": 1.0, "bottom": 1.0}}], "texts": [], "custom_margins": null}, {"layout_name": "1枚 (全面)", "spacing_mm": 0.0, "background_color": "#FFFFFF", "photos": [{"path": "assets/img_3.jpg", "slot_index": 0, "rotation": 0, "crop": {"left": 0.0, "top": 0.0, "right": 1.0, "bottom": 1.0}}], "texts": [], "custom_margins": null}, {"layout_name": "1枚 (全面)", "spacing_mm": 0.0, "background_color": "#FFFFFF", "photos": [{"path": "assets/img_4.jpg", "slot_index": 0, "rotation": 0, "crop": {"left": 0.0, "top": 0.0, "right": 1.0, "bottom": 1.0}}], "texts": [], "custom_margins": null}, {"layout_name": "1枚 (全面)", "spacing_mm": 0.0, "background_color": "#FFFFFF", "photos": [{"path": "assets/img_5.jpg", "slot_index": 0, "rotation": 0, "crop": {"left": 0.0, "top": 0.0, "right": 1.0, "bottom": 1.0}}], "texts": [], "custom_margins": null}, {"layout_name": "1枚 (全面)", "spacing_mm": 0.0, "background_color": "#FFFFFF", "photos": [{"path": "assets/img_6.jpg", "slot_index": 0, "rotation": 0, "crop": {"left": 0.0, "top": 0.0, "right": 1.0, "bottom": 1.0}}], "texts": [], "custom_margins": null}, {"layout_name": "1枚 (全面)", "spacing_mm": 0.0, "background_color": "#FFFFFF", "photos": [{"path": "assets/img_7.jpg", "slot_index": 0, "rotation": 0, "crop": {"left": 0.0, "top": 0.0, "right": 1.0, "bottom": 1.0}}], "texts": [], "custom_margins": null}, {"layout_name": "1枚 (全面)", "spacing_mm": 0.0, "background_color": "#FFFFFF", "photos": [{"path": "assets/img_8.jpg", "slot_index": 0, "rotation": 0, "crop": {"left": 0.0, "top": 0.0, "right": 1.0, "bottom": 1.0}}], "texts": [], "custom_margins": null}, {"layout_name": "1枚 (全面)", "spacing_mm": 0.0, "background_color": "#FFFFFF", "photos": [{"path": "assets/img_9.jpg", "slot_index": 0, "rotation": 0, "crop": {"left": 0.0, "top": 0.0, "right": 1.0, "bottom": 1.0}}], "texts": [], "custom_margins": null}, {"layout_name": "1枚 (全面)", "spacing_mm": 0.0, "background_color": "#FFFFFF", "photos": [{"path": "assets/img_10.jpg", "slot_index": 0, "rotation": 0, "crop": {"left": 0.0, "top": 0.0, "right": 1.0, "bottom": 1.0}}], "texts": [], "custom_margins": null}, {"layout_name": "1枚 (全面)", "spacing_mm": 0.0, "background_color": "#FFFFFF", "photos": [{"path": "assets/img_11.jpg", "slot_index": 0, "rotation": 0, "crop": {"left": 0.0, "top": 0.0, "right": 1.0, "bottom": 1.0}}], "texts": [], "custom_margins": null}, {"layout_name": "1枚 (全面)", "spacing_mm": 0.0, "background_color": "#FFFFFF", "photos": [{"path": "assets/img_12.jpg", "slot_index": 0, "rotation": 0, "crop": {"left": 0.0, "top": 0.0, "right": 1.0, "bottom": 1.0}}], "texts": [], "custom_margins": null}, {"layout_name": "1枚 (全面)", "spacing_mm": 0.0, "background_color": "#FFFFFF", "photos": [{"path": "assets/img_13.jpg", "slot_index": 0, "rotation": 0, "crop": {"left": 0.0, "top": 0.0, "right": 1.0, "bottom": 1.0}}], "texts": [], "custom_margins": null}, {"layout_name": "1枚 (全面)", "spacing_mm": 0.0, "background_color": "#FFFFFF", "photos": [{"path": "assets/img_14.jpg", "slot_index": 0, "rotation": 0, "crop": {"left": 0.0, "top": 0.0, "right": 1.0, "bottom": 1.0}}], "texts": [], "custom_margins": null}, {"layout_name": "1枚 (全面)", "spacing_mm": 0.0, "background_color": "#FFFFFF", "photos": [{"path": "assets/img_15.jpg", "slot_index": 0, "rotation": 0, "crop": {"left": 0.0, "top": 0.0, "right": 1.0, "bottom": 1.0}}], "texts": [], "custom_margins": null}, {"layout_name": "1枚 (全面)", "spacing_mm": 0.0, "background_color": "#FFFFFF", "photos": [{"path": "assets/img_16.jpg", "slot_index": 0, "rotation": 0, "crop": {"left": 0.0, "top": 0.0, "right": 1.0, "bottom": 1.0}}], "texts": [], "custom_margins": null}, {"layout_name": "1枚 (全面)", "spacing_mm": 0.0, "background_color": "#FFFFFF", "photos": [{"path": "assets/img_17.jpg", "slot_index": 0, "rotation": 0, "crop": {"left": 0.0, "top": 0.0, "right": 1.0, "bottom": 1.0}}], "texts": [], "custom_margins": null}, {"layout_name": "1枚 (全面)", "spacing_mm": 0.0, "background_color": "#FFFFFF", "photos": [{"path": "assets/img_18.jpg", "slot_index": 0, "rotation": 0, "crop": {"left": 0.0, "top": 0.0, "right": 1.0, "bottom": 1.0}}], "texts": [], "custom_margins": null}, {"layout_name": "1枚 (全面)", "spacing_mm": 0.0, "background_color": "#FFFFFF", "photos": [{"path": "assets/img_19.jpg", "slot_index": 0, "rotation": 0, "crop": {"left": 0.0, "top": 0.0, "right": 1.0, "bottom": 1.0}}], "texts": [], "custom_margins": null}, {"layout_name": "1枚 (全面)", "spacing_mm": 0.0, "background_color": "#FFFFFF", "photos": [{"path": "assets/img_20.jpg", "slot_index": 0, "rotation": 0, "crop": {"left": 0.0, "top": 0.0, "right": 1.0, "bottom": 1.0}}], "texts": [], "custom_margins": null}, {"layout_name": "1枚 (全面)", "spacing_mm": 0.0, "background_color": "#FFFFFF", "photos": [{"path": "assets/img_21.jpg", "slot_index": 0, "rotation": 0, "crop": {"left": 0.0, "top": 0.0, "right": 1.0, "bottom": 1.0}}], "texts": [], "custom_margins": null}, {"layout_name": "1枚 (全面)", "spacing_mm": 0.0, "background_color": "#FFFFFF", "photos": [{"path": "assets/img_22.jpg", "slot_index": 0, "rotation": 0, "crop": {"left": 0.0, "top": 0.0, "right": 1.0, "bottom": 1.0}}], "texts": [], "custom_margins": null}, {"layout_name": "1枚 (全面)", "spacing_mm": 0.0, "background_color": "#FFFFFF", "photos": [{"path": "assets/img_23.jpg", "slot_index": 0, "rotation": 0, "crop": {"left": 0.0, "top": 0.0, "right": 1.0, "bottom": 1.0}}], "texts": [], "custom_margins": null}, {"layout_name": "1枚 (全面)", "spacing_mm": 0.0, "background_color": "#FFFFFF", "photos": [{"path": "assets/img_24.jpg", "slot_index": 0, "rotation": 0, "crop": {"left": 0.0, "top": 0.0, "right": 1.0, "bottom": 1.0}}], "texts": [], "custom_margins": null}, {"layout_name": "1枚 (全面)", "spacing_mm": 0.0, "background_color": "#FFFFFF", "photos": [{"path": "assets/img_25.jpg", "slot_index": 0, "rotation": 0, "crop": {"left": 0.0, "top": 0.0, "right": 1.0, "bottom": 1.0}}], "texts": [], "custom_margins": null}, {"layout_name": "1枚 (全面)", "spacing_mm": 0.0, "background_color": "#FFFFFF", "photos": [{"path": "assets/img_26.jpg", "slot_index": 0, "rotation": 0, "crop": {"left": 0.0, "top": 0.0, "right": 1.0, "bottom": 1.0}}], "texts": [], "custom_margins": null}, {"layout_name": "1枚 (全面)", "spacing_mm": 0.0, "background_color": "#FFFFFF", "photos": [{"path": "assets/img_27.jpg", "slot_index": 0, "rotation": 0, "crop": {"left": 0.0, "top": 0.0, "right": 1.0, "bottom": 1.0}}], "texts": [], "custom_margins": null}, {"layout_name": "1枚 (全面)", "spacing_mm": 0.0, "background_color": "#FFFFFF", "photos": [{"path": "assets/img_28.jpg", "slot_index": 0, "rotation": 0, "crop": {"left": 0.0, "top": 0.0, "right": 1.0, "bottom": 1.0}}], "texts": [], "custom_margins": null}, {"layout_name": "1枚 (全面)", "spacing_mm": 0.0, "background_color": "#FFFFFF", "photos": [{"path": "assets/img_29.jpg", "slot_index": 0, "rotation": 0, "crop": {"left": 0.0, "top": 0.0, "right": 1.0, "bottom": 1.0}}], "texts": [], "custom_margins": null}, {"layout_name": "1枚 (全面)", "spacing_mm": 0.0, "background_color": "#FFFFFF", "photos": [{"path": "assets/img_30.jpg", "slot_index": 0, "rotation": 0, "crop": {"left": 0.0, "top": 0.0, "right": 1.0, "bottom": 1.0}}], "texts": [], "custom_margins": null}, {"layout_name": "1枚 (全面)", "spacing_mm": 0.0, "background_color": "#FFFFFF", "photos": [{"path": "assets/img_31.jpg", "slot_index": 0, "rotation": 0, "crop": {"left": 0.0, "top": 0.0, "right": 1.0, "bottom": 1.0}}], "texts": [], "custom_margins": null}, {"layout_name": "1枚 (全面)", "spacing_mm": 0.0, "background_color": "#FFFFFF", "photos": [{"path": "assets/img_32.jpg", "slot_index": 0, "rotation": 0, "crop": {"left": 0.0, "top": 0.0, "right": 1.0, "bottom": 1.0}}], "texts": [], "custom_margins": null}, {"layout_name": "1枚 (全面)", "spacing_mm": 0.0, "background_color": "#FFFFFF", "photos": [{"path": "assets/img_33.jpg", "slot_index": 0, "rotation": 0, "crop": {"left": 0.0, "top": 0.0, "right": 1.0, "bottom": 1.0}}], "texts": [], "custom_margins": null}, {"layout_name": "1枚 (全面)", "spacing_mm": 0.0, "background_color": "#FFFFFF", "photos": [{"path": "assets/img_34.jpg", "slot_index": 0, "rotation": 0, "crop": {"left": 0.0, "top": 0.0, "right": 1.0, "bottom": 1.0}}], "texts": [], "custom_margins": null}, {"layout_name": "1枚 (全面)", "spacing_mm": 0.0, "background_color": "#FFFFFF", "photos": [{"path": "assets/img_35.jpg", "slot_index": 0, "rotation": 0, "crop": {"left": 0.0, "top": 0.0, "right": 1.0, "bottom": 1.0}}], "texts": [], "custom_margins": null}, {"layout_name": "1枚 (全面)", "spacing_mm": 0.0, "background_color": "#FFFFFF", "photos": [{"path": "assets/img_36.jpg", "slot_index": 0, "rotation": 0, "crop": {"left": 0.0, "top": 0.0, "right": 1.0, "bottom": 1.0}}], "texts": [], "custom_margins": null}, {"layout_name": "1枚 (全面)", "spacing_mm": 0.0, "background_color": "#FFFFFF", "photos": [{"path": "assets/img_37.jpg", "slot_index": 0, "rotation": 0, "crop": {"left": 0.0, "top": 0.0, "right": 1.0, "bottom": 1.0}}], "texts": [], "custom_margins": null}, {"layout_name": "1枚 (全面)", "spacing_mm": 0.0, "background_color": "#FFFFFF", "photos": [{"path": "assets/img_38.jpg", "slot_index": 0, "rotation": 0, "crop": {"left": 0.0, "top": 0.0, "right": 1.0, "bottom": 1.0}}], "texts": [], "custom_margins": null}, {"layout_name": "1枚 (全面)", "spacing_mm": 0.0, "background_color": "#FFFFFF", "photos": [{"path": "assets/img_39.jpg", "slot_index": 0, "rotation": 0, "crop": {"left": 0.0, "top": 0.0, "right": 1.0, "bottom": 1.0}}], "texts": [], "custom_margins": null}, {"layout_name": "1枚 (全面)", "spacing_mm": 0.0, "background_color": "#FFFFFF", "photos": [{"path": "assets/img_40.jpg", "slot_index": 0, "rotation": 0, "crop": {"left": 0.0, "top": 0.0, "right": 1.0, "bottom": 1.0}}], "texts": [], "custom_margins": null}, {"layout_name": "1枚 (全面)", "spacing_mm": 0.0, "background_color": "#FFFFFF", "photos": [{"path": "assets/img_41.jpg", "slot_index": 0, "rotation": 0, "crop": {"left": 0.0, "top": 0.0, "right": 1.0, "bottom": 1.0}}], "texts": [], "custom_margins": null}, {"layout_name": "1枚 (全面)", "spacing_mm": 0.0, "background_color": "#FFFFFF", "photos": [{"path": "assets/img_42.jpg", "slot_index": 0, "rotation": 0, "crop": {"left": 0.0, "top": 0.0, "right": 1.0, "bottom": 1.0}}], "texts": [], "custom_margins": null}, {"layout_name": "1枚 (全面)", "spacing_mm": 0.0, "background_color": "#FFFFFF", "photos": [{"path": "assets/img_43.jpg", "slot_index": 0, "rotation": 0, "crop": {"left": 0.0, "top": 0.0, "right": 1.0, "bottom": 1.0}}], "texts": [], "custom_margins": null}, {"layout_name": "1枚 (全面)", "spacing_mm": 0.0, "background_color": "#FFFFFF", "photos": [{"path": "assets/img_44.jpg", "slot_index": 0, "rotation": 0, "crop": {"left": 0.0, "top": 0.0, "right": 1.0, "bottom": 1.0}}], "texts": [], "custom_margins": null}, {"layout_name": "1枚 (全面)", "spacing_mm": 0.0, "background_color": "#FFFFFF", "photos": [{"path": "assets/img_45.jpg", "slot_index": 0, "rotation": 0, "crop": {"left": 0.0, "top": 0.0, "right": 1.0, "bottom": 1.0}}], "texts": [], "custom_margins": null}, {"layout_name": "1枚 (全面)", "spacing_mm": 0.0, "background_color": "#FFFFFF", "photos": [{"path": "assets/img_46.jpg", "slot_index": 0, "rotation": 0, "crop": {"left": 0.0, "top": 0.0, "right": 1.0, "bottom": 1.0}}], "texts": [], "custom_margins": null}, {"layout_name": "1枚 (全面)", "spacing_mm": 0.0, "background_color": "#FFFFFF", "photos": [{"path": "assets/img_47.jpg", "slot_index": 0, "rotation": 0, "crop": {"left": 0.0, "top": 0.0, "right": 1.0, "bottom": 1.0}}], "texts": [], "custom_margins": null}, {"layout_name": "1枚 (全面)", "spacing_mm": 0.0, "background_color": "#FFFFFF", "photos": [{"path": "assets/img_48.jpg", "slot_index": 0, "rotation": 0, "crop": {"left": 0.0, "top": 0.0, "right": 1.0, "bottom": 1.0}}], "texts": [], "custom_margins": null}, {"layout_name": "1枚 (全面)", "spacing_mm": 0.0, "background_color": "#FFFFFF", "photos": [{"path": "assets/img_49.jpg", "slot_index": 0, "rotation": 0, "crop": {"left": 0.0, "top": 0.0, "right": 1.0, "bottom": 1.0}}], "texts": [], "custom_margins": null}, {"layout_name": "1枚 (全面)", "spacing_mm": 0.0, "background_color": "#FFFFFF", "photos": [{"path": "assets/img_50.jpg", "slot_index": 0, "rotation": 0, "crop": {"left": 0.0, "top": 0.0, "right": 1.0, "bottom": 1.0}}], "texts": [], "custom_margins": null}, {"layout_name": "1枚 (全面)", "spacing_mm": 0.0, "background_color": "#FFFFFF", "photos": [], "texts": [], "custom_margins": null}, {"layout_name": "1枚 (全面)", "spacing_mm": 0.0, "background_color": "#FFFFFF", "photos": [{"path": "assets/img_51.jpg", "slot_index": 0, "rotation": 0, "crop": {"left": 0.0, "top": 0.0, "right": 1.0, "bottom": 1.0}}], "texts": [], "custom_margins": {"top": 0.0, "bottom": 0.0, "inner": 0.0, "outer": 0.0}}, {"layout_name": "1枚 (全面)", "spacing_mm": 0.0, "background_color": "#FFFFFF", "photos": [{"path": "assets/img_52.jpg", "slot_index": 0, "rotation": 0, "crop": {"left": 0.0, "top": 0.0, "right": 1.0, "bottom": 1.0}}], "texts": [], "custom_margins": {"top": 0.0, "bottom": 0.0, "inner": 0.0, "outer": 0.0}}], "current_spread_index": 1};
+    const LAYOUT_DEFS = {"1枚 (全面)": [[0.0, 0.0, 1.0, 1.0]], "1枚 (中央)": [[0.1, 0.1, 0.8, 0.8]], "2枚 (縦並び)": [[0.0, 0.0, 1.0, 0.5], [0.0, 0.5, 1.0, 0.5]], "2枚 (横並び)": [[0.0, 0.0, 0.5, 1.0], [0.5, 0.0, 0.5, 1.0]], "3枚 (分割)": [[0.0, 0.0, 1.0, 0.5], [0.0, 0.5, 0.5, 0.5], [0.5, 0.5, 0.5, 0.5]], "4枚 (グリッド)": [[0.0, 0.0, 0.5, 0.5], [0.5, 0.0, 0.5, 0.5], [0.0, 0.5, 0.5, 0.5], [0.5, 0.5, 0.5, 0.5]], "6枚 (グリッド)": [[0.0, 0.0, 0.5, 0.333], [0.5, 0.0, 0.5, 0.333], [0.0, 0.333, 0.5, 0.333], [0.5, 0.333, 0.5, 0.333], [0.0, 0.666, 0.5, 0.333], [0.5, 0.666, 0.5, 0.333]]};
+    const PAPER_SIZES = {"A0": [841, 1189], "A1": [594, 841], "A2": [420, 594], "A3": [297, 420], "A4": [210, 297], "A5": [148, 210], "A6": [105, 148], "B4": [257, 364], "B5": [182, 257], "Hagaki": [100, 148], "L-Size": [89, 127], "2L-Size": [127, 178]};
+    const IS_COVER_MODE = true;
+
+    let currentSpreadIndex = 0;
+    let isSinglePageMode = false;
+    let isUIHidden = false;
+    let isMobile = /Mobi|Android|iPhone/i.test(navigator.userAgent);
+    
+    const paperKey = PROJECT_DATA.paper_size in PAPER_SIZES ? PROJECT_DATA.paper_size : "A4";
+    let [pw, ph] = PAPER_SIZES[paperKey];
+    if (PROJECT_DATA.orientation === "Landscape") [pw, ph] = [ph, pw];
+
+    function handleContainerClick(e) {
+        const rect = e.currentTarget.getBoundingClientRect();
+        const x = (e.clientX - rect.left) / rect.width;
+        if (x < 0.3) prevSpread();
+        else if (x > 0.7) nextSpread();
+        else toggleUI();
+    }
+
+    function toggleUI(forceState = null) {
+        isUIHidden = (forceState !== null) ? forceState : !isUIHidden;
+        
+        if (isUIHidden) document.body.classList.add('ui-hidden');
+        else document.body.classList.remove('ui-hidden');
+        
+        // サイズ再計算（アニメーション用ディレイ）
+        setTimeout(renderSpread, 50); 
+        setTimeout(renderSpread, 410); 
+
+        if (isUIHidden && forceState === null) {
+            const hint = document.getElementById('ui-toggle-hint');
+            hint.style.opacity = "1";
+            setTimeout(() => { hint.style.opacity = "0"; }, 2000);
+        }
+    }
+
+    function toggleNavButtons(isVisible) {
+        document.getElementById('nav-button-container').classList.toggle('visible', isVisible);
+    }
+
+    let touchStartX = 0;
+    function init() {
+        const viewer = document.getElementById('viewer-container');
+        viewer.addEventListener('touchstart', e => { touchStartX = e.changedTouches[0].screenX; }, false);
+        viewer.addEventListener('touchend', e => { 
+            let touchEndX = e.changedTouches[0].screenX;
+            if (touchEndX < touchStartX - 50) nextSpread();
+            if (touchEndX > touchStartX + 50) prevSpread();
+        }, false);
+
+        window.addEventListener('resize', () => {
+            checkOrientation();
+            renderSpread();
+        });
+        
+        window.addEventListener('keydown', (e) => {
+            if(e.key === "ArrowLeft") prevSpread();
+            if(e.key === "ArrowRight") nextSpread();
+            if(e.key === " ") { e.preventDefault(); toggleUI(); }
+        });
+
+        checkOrientation();
+        renderSpread();
+    }
+
+    // スマホ横向き検知
+    function checkOrientation() {
+        const isLandscape = window.innerWidth > window.innerHeight;
+        // スマホかつ横向きならUIを隠す。そうでなければ表示する。
+        if (isMobile && isLandscape) {
+            if (!isUIHidden) toggleUI(true);
+        } else if (isMobile && !isLandscape) {
+            if (isUIHidden) toggleUI(false);
+        }
+    }
+
+    function getSpreadCount() {
+        const totalPages = PROJECT_DATA.pages.length;
+        if (isSinglePageMode) return totalPages;
+        if (!IS_COVER_MODE) return Math.ceil(totalPages / 2);
+        return 1 + Math.ceil((totalPages - 1) / 2);
+    }
+
+    function initNavigation() {
+        const total = getSpreadCount();
+        document.getElementById('seek-bar').max = total - 1;
+        document.getElementById('lbl-total').innerText = total;
+        const select = document.getElementById('page-select');
+        select.innerHTML = "";
+        for(let i=0; i<total; i++) {
+            const opt = document.createElement("option");
+            opt.value = i;
+            opt.innerText = isSinglePageMode ? `Page ${i+1}` : `Spread ${i+1}`;
+            select.appendChild(opt);
+        }
+    }
+
+    function updateNavUI() {
+        document.getElementById('seek-bar').value = currentSpreadIndex;
+        document.getElementById('lbl-current').innerText = currentSpreadIndex + 1;
+        document.getElementById('page-select').value = currentSpreadIndex;
+    }
+
+    function onSeek(val) { currentSpreadIndex = parseInt(val); renderSpread(); }
+    function jumpToPage(val) { currentSpreadIndex = parseInt(val); renderSpread(); }
+
+    function getVisiblePageIndices(sIdx) {
+        if (isSinglePageMode) return [sIdx];
+        if (!IS_COVER_MODE) return [sIdx * 2, sIdx * 2 + 1];
+        if (sIdx === 0) return [-1, 0];
+        const start = 1 + (sIdx - 1) * 2;
+        return [start, start + 1];
+    }
+
+    function renderSpread() {
+        const container = document.getElementById('spread-view');
+        const vrect = document.getElementById('viewer-container').getBoundingClientRect();
+        const viewerW = vrect.width;
+        const viewerH = vrect.height;
+        
+        // 画面比率に基づいて1ページか見開きかを決定
+        const nextMode = (viewerW < viewerH) || (viewerW < 700);
+        if (isSinglePageMode !== nextMode) {
+            isSinglePageMode = nextMode;
+            initNavigation();
+        } else if (container.innerHTML === "") {
+            initNavigation();
+        }
+
+        container.innerHTML = '';
+        const pageIndices = getVisiblePageIndices(currentSpreadIndex);
+        const displayCols = isSinglePageMode ? 1 : 2;
+        const spreadAspect = (pw * displayCols) / ph;
+        
+        let drawH, drawW;
+        if ((viewerW / viewerH) > spreadAspect) {
+            drawH = viewerH * (isUIHidden ? 1.0 : 0.95); // UI非表示時は100%
+            drawW = drawH * spreadAspect;
+        } else {
+            drawW = viewerW * (isUIHidden ? 1.0 : 0.95);
+            drawH = drawW / spreadAspect;
+        }
+        
+        const pxPerMm = (drawW / displayCols) / pw;
+        container.style.width = `${drawW}px`;
+        container.style.height = `${drawH}px`;
+
+        pageIndices.forEach((pIdx, i) => {
+            const pageDiv = document.createElement('div');
+            pageDiv.className = 'page';
+            pageDiv.style.width = isSinglePageMode ? '100%' : '50%';
+            pageDiv.style.height = '100%';
+
+            if (pIdx < 0 || pIdx >= PROJECT_DATA.pages.length) {
+                if (!isSinglePageMode) {
+                    pageDiv.style.background = 'transparent';
+                    container.appendChild(pageDiv);
+                }
+                return;
+            }
+
+            const pageData = PROJECT_DATA.pages[pIdx];
+            pageDiv.style.backgroundColor = pageData.background_color;
+            const m = pageData.custom_margins || {top: PROJECT_DATA.margin_top, bottom: PROJECT_DATA.margin_bottom, inner: PROJECT_DATA.margin_inner, outer: PROJECT_DATA.margin_outer};
+            const isLeftPage = (i === 0 && !isSinglePageMode);
+            const mt = m.top * pxPerMm, mb = m.bottom * pxPerMm;
+            const ml = (isSinglePageMode ? (m.inner+m.outer)/2 : (isLeftPage ? m.outer : m.inner)) * pxPerMm;
+            const mr = (isSinglePageMode ? (m.inner+m.outer)/2 : (isLeftPage ? m.inner : m.outer)) * pxPerMm;
+            const safeW = (drawW / displayCols) - ml - mr, safeH = drawH - mt - mb;
+            const spacing = (pageData.spacing_mm || 0) * pxPerMm;
+
+            (LAYOUT_DEFS[pageData.layout_name] || []).forEach((r, rIdx) => {
+                const slotDiv = document.createElement('div');
+                slotDiv.style.position = "absolute";
+                slotDiv.style.overflow = "hidden";
+                slotDiv.style.left = `${ml + r[0] * safeW + spacing/2}px`;
+                slotDiv.style.top = `${mt + r[1] * safeH + spacing/2}px`;
+                slotDiv.style.width = `${r[2] * safeW - spacing}px`;
+                slotDiv.style.height = `${r[3] * safeH - spacing}px`;
+                const photo = pageData.photos.find(p => p.slot_index === rIdx);
+                if (photo) {
+                    const img = document.createElement('img');
+                    img.src = photo.path;
+                    img.className = 'photo-img';
+                    if (photo.rotation) img.style.transform = `rotate(${photo.rotation}deg)`;
+                    slotDiv.appendChild(img);
+                }
+                pageDiv.appendChild(slotDiv);
+            });
+
+            pageData.texts.forEach(txt => {
+                const tDiv = document.createElement('div');
+                tDiv.className = 'text-item';
+                tDiv.innerText = txt.text;
+                tDiv.style.color = txt.color;
+                tDiv.style.fontSize = `${txt.font_size * pxPerMm * 0.3}px`;
+                tDiv.style.fontFamily = txt.font_family;
+                tDiv.style.left = `${txt.x_rel * 100}%`;
+                tDiv.style.top = `${txt.y_rel * 100}%`;
+                pageDiv.appendChild(tDiv);
+            });
+
+            const pNum = document.createElement('div');
+            pNum.className = 'page-num';
+            pNum.innerText = `- ${pIdx + 1} -`;
+            pageDiv.appendChild(pNum);
+            
+            const shadow = document.createElement('div');
+            shadow.className = 'page-shadow';
+            pageDiv.appendChild(shadow);
+
+            container.appendChild(pageDiv);
+        });
+        updateNavUI();
+    }
+
+    function nextSpread() { if (currentSpreadIndex < getSpreadCount() - 1) { currentSpreadIndex++; renderSpread(); } }
+    function prevSpread() { if (currentSpreadIndex > 0) { currentSpreadIndex--; renderSpread(); } }
+
+    window.onload = init;
+</script>
+</body>
+</html>
