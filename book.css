@@ -1,0 +1,95 @@
+:root{--background:#121212;--panel:#1e1e1e;--text:#eeeeee;--accent:#e68a2e;color-scheme:dark;font-family:"Yu Gothic UI",system-ui,sans-serif}
+*{box-sizing:border-box}body{margin:0;background:var(--background);color:var(--text);height:100dvh;display:flex;flex-direction:column;overflow:hidden}button,select,input{font:inherit}button,select{color:var(--text);background:var(--panel);border:1px solid color-mix(in srgb,var(--text) 23%,transparent);border-radius:7px;min-height:38px;padding:7px 13px;cursor:pointer}button:hover,select:hover{border-color:var(--accent)}button:focus-visible,select:focus-visible,input:focus-visible{outline:3px solid var(--accent);outline-offset:3px}button:disabled{opacity:.35;cursor:default}header{display:flex;justify-content:space-between;align-items:center;gap:20px;padding:14px 24px;border-bottom:1px solid color-mix(in srgb,var(--text) 12%,transparent);background:var(--panel);z-index:2}.brand{display:flex;align-items:center;gap:13px;min-width:0}.brand>div{min-width:0}.mark{font:26px "Yu Mincho",serif;color:var(--accent);border:1px solid var(--accent);border-radius:7px;width:43px;height:43px;display:grid;place-items:center;flex-shrink:0}.eyebrow{font-size:9px;letter-spacing:.17em;color:var(--accent)}h1{font-size:17px;font-weight:500;white-space:nowrap;text-overflow:ellipsis;overflow:hidden;margin:3px 0 0}nav{display:flex;gap:8px;flex-shrink:0}#viewer{flex:1;min-height:0;overflow:auto;position:relative;display:block;outline:none;touch-action:pan-y}#stage{display:flex;position:relative;box-shadow:0 10px 45px #0005;margin:24px auto;user-select:none}#stage .page-slot{flex:none;position:relative;background:transparent}#stage img{display:block;width:100%;height:100%;object-fit:contain;background:white;pointer-events:none}#stage img.failed{object-fit:none;color:#222}#stage .blank{visibility:hidden}footer{background:var(--panel);padding:12px 24px max(12px,env(safe-area-inset-bottom));border-top:1px solid color-mix(in srgb,var(--text) 12%,transparent);z-index:2}.navigation{display:flex;align-items:center;gap:12px}.navigation output{font-size:12px;min-width:96px;text-align:center;font-variant-numeric:tabular-nums}.navigation input{flex:1;min-width:50px;accent-color:var(--accent);height:30px}.settings{display:flex;align-items:center;gap:20px;margin-top:9px;font-size:11px;color:color-mix(in srgb,var(--text) 75%,transparent)}.settings label{display:flex;align-items:center;gap:8px}.settings select{font-size:12px;min-height:32px;padding:3px 8px}.hint{margin-left:auto;font-size:10px}.settings button{min-height:32px;font-size:11px}#thumbs{position:absolute;right:0;top:0;bottom:0;z-index:5;width:min(400px,100%);background:var(--panel);padding:20px;overflow:auto;box-shadow:-15px 0 40px #0006}.thumb-heading{display:flex;justify-content:space-between;align-items:center;margin-bottom:18px}#thumb-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:12px}.thumb{padding:5px;min-width:0}.thumb img{display:block;width:100%;height:120px;object-fit:contain}.thumb span{display:block;font-size:10px;padding:6px 0 2px}.thumb[aria-current="page"]{border:2px solid var(--accent)}[hidden]{display:none!important}.immersive header,.immersive footer{display:none}#restore-ui{display:none;position:absolute;right:12px;top:12px;z-index:3;opacity:.8}.immersive #restore-ui{display:block}body.zoomed #viewer{cursor:grab;touch-action:pan-x pan-y}body.dragging #viewer{cursor:grabbing}
+@media(max-width:700px){header{padding:10px 12px;gap:10px}.mark{width:34px;height:34px;font-size:23px}.brand{gap:9px}.eyebrow{font-size:7px}h1{font-size:13px}nav{gap:5px}nav button{font-size:11px;padding:6px 8px}footer{padding:10px 12px max(10px,env(safe-area-inset-bottom))}.settings{gap:12px;flex-wrap:wrap}.hint{display:none}.settings button{margin-left:auto}.navigation{gap:6px}.navigation button{font-size:12px;padding:6px 11px}.navigation output{min-width:76px;font-size:11px}#stage{margin:12px auto}}
+@media(prefers-reduced-motion:no-preference){button{transition:border-color .15s,background .15s}}
+
+/* The page images stay untouched. Paper shading belongs to the reader only. */
+#stage {
+  --paper-shade: 1;
+  --paper-depth: 1;
+  isolation: isolate;
+  box-shadow: none;
+}
+#stage[data-paper="soft"] { --paper-shade: .45; --paper-depth: .65; }
+#stage[data-paper="flat"] { --paper-shade: 0; --paper-depth: 0; }
+#stage.open-book {
+  box-shadow: 0 18px 38px rgba(0,0,0,.28), 0 3px 7px rgba(0,0,0,.18);
+}
+#stage .paper-page {
+  isolation: isolate;
+  background: #fff;
+}
+#stage .paper-alone {
+  box-shadow: 0 16px 32px rgba(0,0,0,.25), 0 2px 5px rgba(0,0,0,.18);
+}
+/* A few thin leaves below the image suggest the thickness of the book. */
+#stage .paper-page::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: -4px;
+  height: 6px;
+  z-index: -1;
+  pointer-events: none;
+  opacity: var(--paper-depth);
+  background: repeating-linear-gradient(to bottom, #fafafa 0px, #fafafa 1px, #cbd0ce 1px, #cbd0ce 2px);
+  border: 1px solid rgba(0,0,0,.12);
+  border-radius: 0 0 2px 2px;
+}
+#stage .paper-page::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  pointer-events: none;
+  opacity: var(--paper-shade);
+}
+/* Left and right refer to screen position, including right-bound books. */
+#stage .paper-left::after {
+  background: linear-gradient(to right,
+    rgba(0,0,0,.045) 0%, transparent 2%,
+    transparent 65%, rgba(255,255,255,.045) 75%,
+    rgba(0,0,0,.018) 86%, rgba(0,0,0,.06) 95%, rgba(0,0,0,.18) 100%);
+  box-shadow: inset -1px 0 rgba(0,0,0,.12), inset 0 1px rgba(255,255,255,.18);
+}
+#stage .paper-right::after {
+  background: linear-gradient(to right,
+    rgba(0,0,0,.16) 0%, rgba(0,0,0,.065) 4%,
+    rgba(0,0,0,.018) 11%, rgba(255,255,255,.045) 21%,
+    transparent 35%, transparent 98%, rgba(0,0,0,.045) 100%);
+  box-shadow: inset 1px 0 rgba(255,255,255,.13), inset 0 1px rgba(255,255,255,.18);
+}
+#stage .paper-alone::after {
+  background: linear-gradient(to right, rgba(0,0,0,.035), transparent 2%, transparent 98%, rgba(0,0,0,.04));
+  box-shadow: inset 0 1px rgba(255,255,255,.18);
+}
+#stage[data-paper="flat"], #stage[data-paper="flat"] .paper-alone { box-shadow: none; }
+
+/* Full-width contact sheet; columns are chosen at export time. */
+#overview { padding: 24px; max-width: 2400px; margin: 0 auto; }
+.overview-heading { display: flex; align-items: baseline; flex-wrap: wrap; gap: 8px 18px; margin-bottom: 22px; }
+.overview-heading h2 { font-size: 18px; font-weight: 500; margin: 0; }
+.overview-heading p { font-size: 12px; opacity: .7; margin: 0; }
+.overview-heading p:last-child { margin-left: auto; }
+#page-grid { display: grid; gap: 24px 16px; align-items: start; }
+.grid-page { display: flex; flex-direction: column; gap: 10px; min-width: 0; padding: 8px; direction: ltr; border-radius: 5px; text-align: left; }
+.grid-page img { display: block; width: 100%; height: auto; object-fit: contain; background: #fff; box-shadow: 0 3px 9px #0003; }
+.grid-page span { display: block; width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 12px; }
+.grid-page small { display: block; width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 10px; opacity: .65; }
+.grid-page[aria-current="page"] { border-color: var(--accent); outline: 1px solid var(--accent); }
+.grid-page:focus-visible { outline: 3px solid var(--accent); outline-offset: 3px; }
+#grid-toggle[aria-pressed="true"] { border-color: var(--accent); }
+.overview-mode .settings { margin-top: 0; }
+@media(max-width:700px) {
+  header { flex-wrap: wrap; }
+  #overview { padding: 16px; }
+  .overview-heading { gap: 6px 12px; margin-bottom: 16px; }
+  .overview-heading p:last-child { width: 100%; margin-left: 0; }
+  #page-grid { gap: 18px 16px; }
+  .grid-page { padding: 6px; }
+}
+@media(prefers-reduced-motion:no-preference) {
+  .grid-page { transition: transform .15s, border-color .15s; }
+  .grid-page:hover { transform: translateY(-3px); }
+}
